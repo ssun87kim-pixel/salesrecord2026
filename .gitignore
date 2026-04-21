@@ -1,0 +1,51 @@
+# 민감 정보
+.streamlit/secrets.toml
+.env
+*.env
+
+# 로컬 전용 설정/세션
+.claude/
+.streamlit/settings.local.json
+.streamlit/__coading rules
+streamlit.log
+
+# 샘플/테스트 데이터 및 로컬 DB (배포 제외)
+SAMPLE DATA/
+demo.db
+
+# 사내 기밀 문서
+docs/internal/
+*.internal.md
+*.secret.md
+*.confidential.md
+SECRETS.md
+CONFIDENTIAL.md
+prd_개발기본문서/
+
+# 업무 문서 (GitHub 업로드 금지)
+*.docx
+*.xlsx
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
