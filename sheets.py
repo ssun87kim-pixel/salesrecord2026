@@ -7,11 +7,11 @@ import pandas as pd
 import db
 
 # ── 시트 구조 상수 (load_sample.py 와 동일) ───────────────────
-# 채널별 행 번호 (0-based): (목표행, 실적행, 전년행)
+# 채널별 행 번호 (0-based): (목표행, 실적행, 2025년행, 2024년행)
 _CHANNEL_ROWS = {
-    "온라인외부몰": (10, 11, 14),
-    "오프라인":     (16, 17, 20),
-    "공식몰+MATE":  (28, 29, 32),
+    "온라인외부몰": (10, 11, 14, 15),
+    "오프라인":     (16, 17, 20, 21),
+    "공식몰+MATE":  (28, 29, 32, 33),
 }
 _COL_OFFSET = 3   # col 3 = 1월, col 4 = 2월, ..., col 14 = 12월
 _MONTHS     = list(range(1, 13))
@@ -96,12 +96,13 @@ def _parse_customer(df: pd.DataFrame) -> list:
 
 def _parse(df: pd.DataFrame, data_type: str) -> tuple[list, list, list]:
     targets, actuals, historical = [], [], []
-    for ch, (row_tgt, row_act, row_25) in _CHANNEL_ROWS.items():
+    for ch, (row_tgt, row_act, row_25, row_24) in _CHANNEL_ROWS.items():
         for m_idx, m in enumerate(_MONTHS):
             col = _COL_OFFSET + m_idx
             tgt_val = _safe_int(df.iloc[row_tgt, col])
             act_val = _safe_int(df.iloc[row_act, col])
             h25_val = _safe_int(df.iloc[row_25,  col])
+            h24_val = _safe_int(df.iloc[row_24,  col]) if row_24 < len(df) else 0
             targets.append({
                 "data_type": data_type, "channel": ch,
                 "year": 2026, "month": m, "amount": tgt_val,
@@ -114,6 +115,10 @@ def _parse(df: pd.DataFrame, data_type: str) -> tuple[list, list, list]:
             historical.append({
                 "data_type": data_type, "channel": ch,
                 "year": 2025, "month": m, "amount": h25_val,
+            })
+            historical.append({
+                "data_type": data_type, "channel": ch,
+                "year": 2024, "month": m, "amount": h24_val,
             })
     return targets, actuals, historical
 

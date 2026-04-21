@@ -633,26 +633,40 @@ if page == "대시보드":
         m2.metric(f"{year - 1}년 동기", fmt_won(prev))
     else:
         if view == "전체":
-            donut_chs    = ["온라인외부몰", "오프라인", "공식몰+MATE"]
-            donut_labels = ["BXM", "CXM 오프라인", "CXM 공식몰"]
-            donut_colors = ["#336DFF", "#282828", "#969696"]
             st.markdown("### 채널별 실적 비중")
+            if seg_type == "고객 구분":
+                donut_labels = ["B2C", "B2B"]
+                donut_colors = ["#336DFF", "#282828"]
+                _b2c_chs = ["온라인외부몰", "오프라인"]
+                act_ch = [
+                    sum(float(a.loc[ch, m]) for ch in _b2c_chs for m in range(1, last_act_m + 1)) if last_act_m else 0,
+                    sum(float(a.loc["공식몰+MATE", m]) for m in range(1, last_act_m + 1)) if last_act_m else 0,
+                ]
+                py_ch = [
+                    sum(float(py.loc[ch, m]) for ch in _b2c_chs for m in range(1, last_act_m + 1)) if last_act_m else 0,
+                    sum(float(py.loc["공식몰+MATE", m]) for m in range(1, last_act_m + 1)) if last_act_m else 0,
+                ]
+            else:
+                donut_chs    = ["온라인외부몰", "오프라인", "공식몰+MATE"]
+                donut_labels = ["BXM", "CXM 오프라인", "CXM 공식몰"]
+                donut_colors = ["#336DFF", "#282828", "#969696"]
+                act_ch = [sum(float(a.loc[ch, m])  for m in range(1, last_act_m + 1)) if last_act_m else 0 for ch in donut_chs]
+                py_ch  = [sum(float(py.loc[ch, m]) for m in range(1, last_act_m + 1)) if last_act_m else 0 for ch in donut_chs]
         elif view == "CXM":
             donut_chs    = ["오프라인", "공식몰+MATE"]
             donut_labels = ["오프라인", "공식몰+MATE"]
             donut_colors = ["#282828", "#969696"]
             st.markdown("### CXM 채널별 실적 비중")
+            act_ch = [sum(float(a.loc[ch, m])  for m in range(1, last_act_m + 1)) if last_act_m else 0 for ch in donut_chs]
+            py_ch  = [sum(float(py.loc[ch, m]) for m in range(1, last_act_m + 1)) if last_act_m else 0 for ch in donut_chs]
         else:  # B2C
             donut_chs    = ["온라인외부몰", "오프라인"]
             donut_labels = ["온라인외부몰", "오프라인"]
             donut_colors = ["#336DFF", "#282828"]
             st.markdown("### B2C 채널별 실적 비중")
+            act_ch = [sum(float(a.loc[ch, m])  for m in range(1, last_act_m + 1)) if last_act_m else 0 for ch in donut_chs]
+            py_ch  = [sum(float(py.loc[ch, m]) for m in range(1, last_act_m + 1)) if last_act_m else 0 for ch in donut_chs]
 
-        # 도넛은 YTD 기간 기준
-        act_ch  = [sum(float(a.loc[ch, m])  for m in range(1, last_act_m + 1)) if last_act_m else 0
-                   for ch in donut_chs]
-        py_ch   = [sum(float(py.loc[ch, m]) for m in range(1, last_act_m + 1)) if last_act_m else 0
-                   for ch in donut_chs]
         act_tot = sum(act_ch)
         py_tot  = sum(py_ch)
 
@@ -839,13 +853,22 @@ if page == "대시보드":
     st.markdown(f"### 채널별 누적 현황 ({VIEW_LABEL[view]})")
 
     if view == "전체":
-        tbl_chs = [
-            ("사업부 전체",   "_전체"),
-            ("BXM",          "온라인외부몰"),
-            ("CXM",          "_CXM"),
-            ("  오프라인",    "오프라인"),
-            ("  공식몰+MATE", "공식몰+MATE"),
-        ]
+        if seg_type == "고객 구분":
+            tbl_chs = [
+                ("사업부 전체",    "_전체"),
+                ("B2C",           "_B2C"),
+                ("  온라인외부몰", "온라인외부몰"),
+                ("  오프라인",     "오프라인"),
+                ("B2B",           "공식몰+MATE"),
+            ]
+        else:
+            tbl_chs = [
+                ("사업부 전체",   "_전체"),
+                ("BXM",          "온라인외부몰"),
+                ("CXM",          "_CXM"),
+                ("  오프라인",    "오프라인"),
+                ("  공식몰+MATE", "공식몰+MATE"),
+            ]
     elif view == "BXM":
         tbl_chs = [("BXM", "온라인외부몰")]
     elif view == "CXM":
@@ -1034,17 +1057,31 @@ elif page == "설정":
 
         for ch in INPUT_CHANNELS:
             st.markdown(f"**{ch}**")
-            cols = st.columns(12)
-            for idx, m in enumerate(range(1, 13)):
-                with cols[idx]:
-                    all_inputs[ch][m] = st.number_input(
-                        f"{m}월",
-                        min_value=0,
-                        value=get_existing_target(ch, m),
-                        step=100_000_000,
-                        format="%d",
-                        key=f"tgt_{dtype_t}_{ch}_{year_t}_{m}",
-                    )
+            for half, months in [("상반기", range(1, 7)), ("하반기", range(7, 13))]:
+                st.caption(half)
+                cols = st.columns(6)
+                for idx, m in enumerate(months):
+                    with cols[idx]:
+                        all_inputs[ch][m] = st.number_input(
+                            f"{m}월",
+                            min_value=0,
+                            value=get_existing_target(ch, m),
+                            step=100_000_000,
+                            format="%d",
+                            key=f"tgt_{dtype_t}_{ch}_{year_t}_{m}",
+                        )
+                fmt_cols = st.columns(6)
+                for idx, m in enumerate(months):
+                    with fmt_cols[idx]:
+                        v = all_inputs[ch][m]
+                        st.caption(f"{v:,}" if v else "-")
+            ch_total = sum(all_inputs[ch][m] for m in range(1, 13))
+            st.markdown(
+                f"<div style='text-align:right;font-size:13px;color:#336DFF;font-weight:700;"
+                f"padding:4px 8px;background:#F0F4FF;border-radius:4px;margin-bottom:12px;'>"
+                f"연간 합계: {ch_total:,}원 &nbsp;({ch_total/1e8:,.2f}억)</div>",
+                unsafe_allow_html=True,
+            )
 
         if st.button("목표 저장", type="primary", use_container_width=True, key="save_tgt"):
             for ch in INPUT_CHANNELS:
@@ -1056,7 +1093,7 @@ elif page == "설정":
     with tab_hist:
         st.warning("한 번 저장하면 수정·삭제가 불가능합니다. 정확하게 입력해주세요.")
         c1, c2, _ = st.columns([1, 1, 4])
-        hist_year = c1.selectbox("과거 연도", [2025, 2024, 2023], key="hist_year")
+        hist_year = c1.selectbox("과거 연도", [2025, 2024], key="hist_year")
         dtype_h   = c2.selectbox("구분",      DATA_TYPES,         key="hist_dtype")
 
         locked = db.is_historical_locked(hist_year, dtype_h)
@@ -1071,26 +1108,50 @@ elif page == "설정":
                         index="channel", columns="month",
                         values="amount", fill_value=0,
                     )
+                    p = p.reindex(INPUT_CHANNELS, fill_value=0)
                     p.columns = [f"{m}월" for m in p.columns]
-                    p["연간합계"] = p.sum(axis=1)
-                    _show_table(p.style.format("{:,.0f}"))
+                    p.insert(0, "연간합계", p.sum(axis=1))
+                    p.loc["합계"] = p.sum()
+
+                    def _style_hist(df):
+                        s = pd.DataFrame("", index=df.index, columns=df.columns)
+                        s.loc["합계"] = "font-weight:700;background-color:#F5F5F5;"
+                        s["연간합계"] = "font-weight:700;background-color:#F0F4FF;color:#336DFF;"
+                        s.loc["합계", "연간합계"] = "font-weight:700;background-color:#E8F0FF;color:#336DFF;"
+                        return s
+
+                    _show_table(p.style.format("{:,.0f}").apply(_style_hist, axis=None))
         else:
             st.markdown(f"**{hist_year}년 {dtype_h} 실적 입력 (단위: 원)**")
             hist_inputs: dict = {ch: {} for ch in INPUT_CHANNELS}
 
             for ch in INPUT_CHANNELS:
                 st.markdown(f"**{ch}**")
-                cols = st.columns(12)
-                for idx, m in enumerate(range(1, 13)):
-                    with cols[idx]:
-                        hist_inputs[ch][m] = st.number_input(
-                            f"{m}월",
-                            min_value=0,
-                            value=0,
-                            step=1_000_000,
-                            format="%d",
-                            key=f"hist_{dtype_h}_{ch}_{hist_year}_{m}",
-                        )
+                for half, months in [("상반기", range(1, 7)), ("하반기", range(7, 13))]:
+                    st.caption(half)
+                    cols = st.columns(6)
+                    for idx, m in enumerate(months):
+                        with cols[idx]:
+                            hist_inputs[ch][m] = st.number_input(
+                                f"{m}월",
+                                min_value=0,
+                                value=0,
+                                step=1_000_000,
+                                format="%d",
+                                key=f"hist_{dtype_h}_{ch}_{hist_year}_{m}",
+                            )
+                    fmt_cols = st.columns(6)
+                    for idx, m in enumerate(months):
+                        with fmt_cols[idx]:
+                            v = hist_inputs[ch][m]
+                            st.caption(f"{v:,}" if v else "-")
+                ch_total = sum(hist_inputs[ch][m] for m in range(1, 13))
+                st.markdown(
+                    f"<div style='text-align:right;font-size:13px;color:#336DFF;font-weight:700;"
+                    f"padding:4px 8px;background:#F0F4FF;border-radius:4px;margin-bottom:12px;'>"
+                    f"연간 합계: {ch_total:,}원 &nbsp;({ch_total/1e8:,.2f}억)</div>",
+                    unsafe_allow_html=True,
+                )
 
             if st.button(
                 "저장 (이후 수정 불가)",

@@ -214,7 +214,7 @@ def insert_historical_bulk(records: list) -> None:
             for rec in records:
                 try:
                     con.execute(
-                        "INSERT OR IGNORE INTO historical(data_type,channel,year,month,amount) VALUES(?,?,?,?,?)",
+                        "INSERT OR REPLACE INTO historical(data_type,channel,year,month,amount) VALUES(?,?,?,?,?)",
                         (rec["data_type"], rec["channel"], rec["year"], rec["month"], rec["amount"]),
                     )
                 except Exception:

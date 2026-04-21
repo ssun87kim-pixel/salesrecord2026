@@ -1,6 +1,6 @@
 # 시스템 설계 (사업부_DESIGN.md)
 > 대상: DESKER 사업부 전체 월별마감 관리 시스템
-> 최종 갱신: 2026-04-21
+> 최종 갱신: 2026-04-21 (사업부 v1.0 완성)
 
 ---
 
@@ -50,10 +50,10 @@ Streamlit app.py
 |------|------|------|
 | data_type | TEXT | |
 | channel | TEXT | |
-| year | INTEGER | 2025 이전 |
+| year | INTEGER | 2024·2025 (Sheets 연동), 이하 수동 입력 가능 |
 | month | INTEGER | |
 | amount | REAL | |
-| locked | INTEGER | 1이면 수정 불가 |
+| UNIQUE | (data_type, channel, year, month) | INSERT OR REPLACE로 재연동 시 갱신 |
 
 #### extra (EXTRA 조정 데이터)
 | 컬럼 | 타입 | 설명 |
@@ -193,10 +193,25 @@ KPI 계산 (YTD 기간 기준)
 
 ---
 
-## 8. 향후 확장
+## 8. Google Sheets 행 구조 (sheets.py)
+
+### _CHANNEL_ROWS (0-based 행 인덱스)
+| 채널 | 목표행 | 실적행 | 2025년행 | 2024년행 |
+|------|--------|--------|---------|---------|
+| 온라인외부몰 | 10 | 11 | 14 | 15 |
+| 오프라인 | 16 | 17 | 20 | 21 |
+| 공식몰+MATE | 28 | 29 | 32 | 33 |
+
+- 열 오프셋: col 3 = 1월, col 4 = 2월 … col 14 = 12월
+- 매출/수주 시트 모두 동일한 행 구조 사용
+
+---
+
+## 9. 향후 확장
 
 | 항목 | 내용 |
 |------|------|
 | BXM 전용 앱 | 사업부_BXM 시리즈 문서 별도 작성 예정 |
 | 멀티페이지 구조 | pages/ 디렉토리 분리 검토 (사업부 vs BXM) |
+| 2023년 과거 실적 | REQ 확정 후 selectbox 추가 및 Sheets 행 매핑 |
 | ERP 자동 연동 | 2단계 계획 (MSSQL) |
