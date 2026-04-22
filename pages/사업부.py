@@ -211,6 +211,11 @@ if page == "대시보드":
                 else:
                     st.session_state.last_sync = datetime.now().strftime("%Y-%m-%d %H:%M")
                     st.rerun()
+        st.markdown("""
+<div style="text-align:center;font-size:13px;color:#969696;margin-top:48px;padding:16px 0;border-top:1px solid #EBEBEB;">
+  개발 및 수정문의: DESKER 김선영 &nbsp;|&nbsp; v1.1.0 &nbsp;|&nbsp; 2026-04-22 15:02 KST
+</div>
+""", unsafe_allow_html=True)
         st.stop()
 
     st.title("2026년 데스커사업부 월별마감")
@@ -1041,6 +1046,31 @@ elif page == "과거실적":
                     return s
 
                 _show_table(p.style.format("{:,.0f}").apply(_style_hist, axis=None))
+        st.markdown("---")
+        st.markdown(f"### 참고) EXTRA 현황 ({dtype_h})")
+        ex_hist = db.get_extra(hist_year)
+        ex_hist_prev = db.get_extra(hist_year - 1)
+
+        def _extra_table_h(ex_df: pd.DataFrame, label: str):
+            if ex_df.empty:
+                st.info(f"{label} EXTRA 데이터 없음")
+                return
+            sub_h = ex_df[ex_df["data_type"] == dtype_h]
+            if sub_h.empty:
+                st.info(f"{label} EXTRA 데이터 없음")
+                return
+            pvt = sub_h.pivot_table(index="channel", columns="month",
+                                    values="amount", aggfunc="sum", fill_value=0)
+            pvt = pvt.reindex(columns=range(1, 13), fill_value=0)
+            ch_order = [c for c in ["합계", "B2C온라인", "B2C오프라인", "B2B(특판/직판)"] if c in pvt.index]
+            pvt = pvt.reindex(ch_order, fill_value=0)
+            pvt.columns = [f"{m}월" for m in pvt.columns]
+            pvt.insert(0, "합계", pvt.sum(axis=1))
+            pvt_fmt = pvt.map(lambda v: f"{v/1e6:+,.0f}백만" if v != 0 else "-")
+            _show_table(pvt_fmt.style, caption=label)
+
+        _extra_table_h(ex_hist, f"{hist_year}년")
+        _extra_table_h(ex_hist_prev, f"{hist_year - 1}년")
     else:
         st.markdown(f"**{hist_year}년 {dtype_h} 실적 입력 (단위: 원)**")
         hist_inputs: dict = {ch: {} for ch in INPUT_CHANNELS}
