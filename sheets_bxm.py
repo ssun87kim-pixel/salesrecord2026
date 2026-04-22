@@ -17,8 +17,8 @@ _SCOPES = [
 
 
 def _get_credentials():
-    creds_path = st.secrets["bxm_sheets"]["creds_file"]
-    creds = Credentials.from_service_account_file(creds_path, scopes=_SCOPES)
+    info = dict(st.secrets["gcp_service_account"])
+    creds = Credentials.from_service_account_info(info, scopes=_SCOPES)
     return creds
 
 
