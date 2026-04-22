@@ -172,6 +172,49 @@ def _render_kpi(df, idx, actual_metric, target_metric, yoy_metric):
 
     return last_act_m, period_lbl
 
+
+def _render_extra_section(df, idx, channels, metric_cur="엑스트라", metric_prev="25년 엑스트라", title="참고) EXTRA 현황"):
+    extra_headers = ["합계"] + [f"{m}월" for m in range(1, 13)]
+    any_data = False
+    sections = []
+    for year_label, metric in [("2026년", metric_cur), ("2025년", metric_prev)]:
+        rows = []
+        for ch_cfg in channels:
+            ch_name = ch_cfg["채널명"]
+            display = "합계" if ch_name == "온라인합계" else ch_name
+            vals = sheets_bxm.get_values(df, idx, ch_name, metric)
+            if vals:
+                row_vals = [fmt_extra(vals["합계"])] + [fmt_extra(vals[f"m{m}"]) for m in range(1, 13)]
+                rows.append((display, row_vals))
+        if rows:
+            any_data = True
+            sections.append((year_label, rows))
+    if not any_data:
+        return
+    st.markdown("---")
+    st.markdown(f"### {title}")
+    for year_label, rows in sections:
+        st.caption(year_label)
+        html_rows = []
+        for name, values in rows:
+            row_html = f"<tr><td style='padding:8px 12px;text-align:center;font-weight:600;white-space:nowrap;'>{name}</td>"
+            for val in values:
+                row_html += f"<td style='padding:8px 12px;text-align:center;'>{val}</td>"
+            row_html += "</tr>"
+            html_rows.append(row_html)
+        col_w = f"{92/len(extra_headers):.2f}%"
+        html = (
+            "<table style='width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;'>"
+            "<thead><tr style='background:#F5F5F5;font-weight:600;'>"
+            "<th style='padding:8px 12px;text-align:center;width:8%;'></th>"
+            + "".join(f"<th style='padding:8px 12px;text-align:center;width:{col_w};'>{h}</th>" for h in extra_headers)
+            + "</tr></thead><tbody>"
+            + "".join(html_rows)
+            + "</tbody></table>"
+        )
+        _show_table(html)
+
+
 with st.sidebar:
     st.markdown("## DESKER 월별마감")
     st.markdown("---")
@@ -228,6 +271,11 @@ if not st.session_state.get("bxm_data"):
                     st.rerun()
                 except Exception as e:
                     st.error(f"데이터 로드 실패: {str(e)}")
+    st.markdown("""
+<div style="text-align:center;font-size:13px;color:#969696;margin-top:48px;padding:16px 0;border-top:1px solid #EBEBEB;">
+  개발 및 수정문의: DESKER 김선영 &nbsp;|&nbsp; v1.1.0 &nbsp;|&nbsp; 2026-04-22 15:02 KST
+</div>
+""", unsafe_allow_html=True)
     st.stop()
 
 bxm_data = st.session_state.bxm_data
@@ -302,6 +350,8 @@ if page == "과거실적":
             _show_table(html_past)
         else:
             st.info("25년 매출 데이터 없음")
+
+    _render_extra_section(sales_df, sales_idx, channels, title="참고) EXTRA 현황")
 
     st.markdown("""
 <div style="text-align:center;font-size:13px;color:#969696;margin-top:48px;padding:16px 0;border-top:1px solid #EBEBEB;">
@@ -460,6 +510,8 @@ with tab_orders:
             st.markdown(f"**{ch_name}**")
             _show_table(_orders_monthly_html(ch_name, has_tgt))
 
+    _render_extra_section(orders_df, orders_idx, channels, title="참고) EXTRA 현황 (수주)")
+
 with tab_sales:
     st.markdown("### 매출 KPI")
     _render_kpi(sales_df, sales_idx, "매출액", "목표", "25년 동기")
@@ -606,45 +658,7 @@ with tab_sales:
             st.markdown(f"**{ch_name}**")
             _show_table(_sales_monthly_html(ch_name, has_tgt))
 
-    st.markdown("---")
-    st.markdown("### EXTRA 요약")
-
-    extra_data_26 = sheets_bxm.get_values(sales_df, sales_idx, "온라인합계", "엑스트라")
-    extra_data_25 = sheets_bxm.get_values(sales_df, sales_idx, "온라인합계", "25년 엑스트라")
-
-    extra_rows = []
-    if extra_data_26:
-        extra_row_26 = [fmt_extra(extra_data_26["합계"])] + [fmt_extra(extra_data_26[f"m{m}"]) for m in range(1, 13)]
-        extra_rows.append(("26년 EXTRA", extra_row_26))
-
-    if extra_data_25:
-        extra_row_25 = [fmt_extra(extra_data_25["합계"])] + [fmt_extra(extra_data_25[f"m{m}"]) for m in range(1, 13)]
-        extra_rows.append(("25년 EXTRA", extra_row_25))
-
-    if extra_rows:
-        extra_headers = ["합계"] + [f"{m}월" for m in range(1, 13)]
-        html_extra_rows = []
-        for metric, values in extra_rows:
-            row_html = f"<tr><td style='padding:8px 12px;text-align:center;font-weight:600;'>{metric}</td>"
-            for val in values:
-                row_html += f"<td style='padding:8px 12px;text-align:center;'>{val}</td>"
-            row_html += "</tr>"
-            html_extra_rows.append(row_html)
-
-        html_extra = f"""
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-            <thead>
-                <tr style="background:#F5F5F5;font-weight:600;">
-                    <th style="padding:8px 12px;text-align:center;">항목</th>
-                    {''.join(f"<th style='padding:8px 12px;text-align:center;'>{h}</th>" for h in extra_headers)}
-                </tr>
-            </thead>
-            <tbody>
-                {''.join(html_extra_rows)}
-            </tbody>
-        </table>
-        """
-        _show_table(html_extra)
+    _render_extra_section(sales_df, sales_idx, channels, title="참고) EXTRA 현황 (매출)")
 
 st.markdown("""
 <div style="text-align:center;font-size:13px;color:#969696;margin-top:48px;padding:16px 0;border-top:1px solid #EBEBEB;">

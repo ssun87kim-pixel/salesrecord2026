@@ -77,7 +77,7 @@ def _build_index(df):
         col2 = str(row.iloc[2]).strip()
         col3 = str(row.iloc[3]).strip()
 
-        if col2 not in ("nan", ""):
+        if col2 not in ("nan", "", "-", " - ", "- "):
             current_channel = col2
 
         if current_channel is None or col3 in ("nan", ""):
