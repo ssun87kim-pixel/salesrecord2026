@@ -45,7 +45,7 @@ if not st.session_state.get("auth"):
                 st.error("비밀번호가 올바르지 않습니다.")
     st.markdown("""
 <div style="text-align:center;font-size:13px;color:#969696;margin-top:48px;padding:16px 0;border-top:1px solid #EBEBEB;">
-  개발 및 수정문의: DESKER 김선영 &nbsp;|&nbsp; v1.1.0 &nbsp;|&nbsp; 2026-04-22 KST
+  개발 및 수정문의: DESKER 김선영 &nbsp;|&nbsp; v1.1.0 &nbsp;|&nbsp; 2026-04-22 15:02 KST
 </div>
 """, unsafe_allow_html=True)
     st.stop()
@@ -305,7 +305,7 @@ if page == "과거실적":
 
     st.markdown("""
 <div style="text-align:center;font-size:13px;color:#969696;margin-top:48px;padding:16px 0;border-top:1px solid #EBEBEB;">
-  개발 및 수정문의: DESKER 김선영 &nbsp;|&nbsp; v1.1.0 &nbsp;|&nbsp; 2026-04-22 KST
+  개발 및 수정문의: DESKER 김선영 &nbsp;|&nbsp; v1.1.0 &nbsp;|&nbsp; 2026-04-22 15:02 KST
 </div>
 """, unsafe_allow_html=True)
     st.stop()
@@ -648,6 +648,6 @@ with tab_sales:
 
 st.markdown("""
 <div style="text-align:center;font-size:13px;color:#969696;margin-top:48px;padding:16px 0;border-top:1px solid #EBEBEB;">
-  개발 및 수정문의: DESKER 김선영 &nbsp;|&nbsp; v1.1.0 &nbsp;|&nbsp; 2026-04-22 KST
+  개발 및 수정문의: DESKER 김선영 &nbsp;|&nbsp; v1.1.0 &nbsp;|&nbsp; 2026-04-22 15:02 KST
 </div>
 """, unsafe_allow_html=True)
