@@ -22,6 +22,9 @@ SECRETS.md
 CONFIDENTIAL.md
 prd_개발기본문서/
 
+# MD 기획/설계 문서 (GitHub 업로드 금지)
+MD FILE/
+
 # 업무 문서 (GitHub 업로드 금지)
 *.docx
 *.xlsx
