@@ -29,6 +29,10 @@ h3 { font-size: 15px !important; font-weight: 600 !important; color: #3C3C3C !im
 </style>
 """, unsafe_allow_html=True)
 
+NOW   = datetime.now()
+CM    = NOW.month
+_MAX_M = max(1, CM - 1)
+
 if not st.session_state.get("auth"):
     _, mid, _ = st.columns([1, 1.5, 1])
     with mid:
@@ -122,45 +126,23 @@ def _build_html_monthly(rows):
     </table>
     """
 
-def _render_kpi(df, idx, actual_metric, target_metric, yoy_metric):
+def _render_kpi(df, idx, actual_metric, target_metric, yoy_metric, period_start, period_end):
     act_vals = sheets_bxm.get_values(df, idx, "온라인합계", actual_metric)
     tgt_vals = sheets_bxm.get_values(df, idx, "온라인합계", target_metric)
     yoy_vals = sheets_bxm.get_values(df, idx, "온라인합계", yoy_metric)
 
     if not act_vals:
-        return None, None
-
-    last_act_m = 0
-    for m in range(1, 13):
-        if act_vals[f"m{m}"] and act_vals[f"m{m}"] > 0:
-            last_act_m = m
-
-    if last_act_m == 0:
-        return None, None
+        return
 
     tgt_annual = sum(tgt_vals[f"m{m}"] for m in range(1, 13) if tgt_vals[f"m{m}"]) if tgt_vals else None
-    ytd_tgt = 0
-    ytd_act = 0
-    ytd_yoy = 0
-
-    if tgt_vals:
-        for m in range(1, last_act_m + 1):
-            if tgt_vals[f"m{m}"]:
-                ytd_tgt += tgt_vals[f"m{m}"]
-
-    for m in range(1, last_act_m + 1):
-        if act_vals[f"m{m}"]:
-            ytd_act += act_vals[f"m{m}"]
-
-    if yoy_vals:
-        for m in range(1, last_act_m + 1):
-            if yoy_vals[f"m{m}"]:
-                ytd_yoy += yoy_vals[f"m{m}"]
+    ytd_tgt = sum(tgt_vals[f"m{m}"] for m in range(period_start, period_end + 1) if tgt_vals.get(f"m{m}")) if tgt_vals else 0
+    ytd_act = sum(act_vals[f"m{m}"] for m in range(period_start, period_end + 1) if act_vals.get(f"m{m}"))
+    ytd_yoy = sum(yoy_vals[f"m{m}"] for m in range(period_start, period_end + 1) if yoy_vals.get(f"m{m}")) if yoy_vals else 0
 
     ar = ytd_act / ytd_tgt if ytd_tgt else None
     gr = (ytd_act - ytd_yoy) / abs(ytd_yoy) if ytd_yoy else None
 
-    period_lbl = f"1~{last_act_m}월"
+    period_lbl = f"{period_start}~{period_end}월"
 
     k1, k2, k3, k4, k5, k6 = st.columns(6)
     k1.metric("연간 목표", fmt_won(tgt_annual))
@@ -169,8 +151,6 @@ def _render_kpi(df, idx, actual_metric, target_metric, yoy_metric):
     k4.metric("달성률", fmt_pct(ar))
     k5.metric(f"YoY 실적 ({period_lbl})", fmt_won(ytd_yoy))
     k6.metric(f"YoY 성장률 ({period_lbl})", fmt_pct(gr))
-
-    return last_act_m, period_lbl
 
 
 def _render_extra_section(df, idx, channels, metric_cur="엑스트라", metric_prev="25년 엑스트라", title="참고) EXTRA 현황"):
@@ -366,24 +346,17 @@ tab_orders, tab_sales = st.tabs(["수주", "매출"])
 
 with tab_orders:
     st.markdown("### 수주 KPI")
-    _render_kpi(orders_df, orders_idx, "수주액", "목표", "25년 동기")
+    oc1, oc2, _ = st.columns([1.2, 1.2, 10])
+    period_start_o = oc1.selectbox("시작월", range(1, _MAX_M + 1), format_func=lambda x: f"{x}월", index=0, key="ord_ps")
+    period_end_o   = oc2.selectbox("종료월", range(1, _MAX_M + 1), format_func=lambda x: f"{x}월", index=_MAX_M - 1, key="ord_pe")
+    if period_end_o < period_start_o:
+        period_end_o = period_start_o
+    _render_kpi(orders_df, orders_idx, "수주액", "목표", "25년 동기", period_start_o, period_end_o)
     st.markdown("---")
 
     st.markdown("### 채널별 현황")
 
-    def get_last_month_with_data(df, idx, metric):
-        last_m = 0
-        for ch_cfg in channels:
-            ch_name = ch_cfg["채널명"]
-            vals = sheets_bxm.get_values(df, idx, ch_name, metric)
-            if vals:
-                for m in range(1, 13):
-                    if vals[f"m{m}"] and vals[f"m{m}"] > 0:
-                        last_m = m
-        return last_m
-
-    last_m = get_last_month_with_data(orders_df, orders_idx, "수주액")
-    period_lbl = f"1~{last_m}월" if last_m else "-"
+    period_lbl_o = f"{period_start_o}~{period_end_o}월"
 
     table_rows = []
     for ch_cfg in channels:
@@ -396,9 +369,9 @@ with tab_orders:
         tgt_vals = sheets_bxm.get_values(orders_df, orders_idx, ch_name, "목표") if has_target else None
 
         tgt_annual = sum(tgt_vals[f"m{m}"] for m in range(1, 13) if tgt_vals[f"m{m}"]) if tgt_vals else None
-        ytd_act = sum(act_vals[f"m{m}"] for m in range(1, last_m + 1) if act_vals[f"m{m}"]) if act_vals and last_m else 0
-        ytd_yoy = sum(yoy_vals[f"m{m}"] for m in range(1, last_m + 1) if yoy_vals[f"m{m}"]) if yoy_vals and last_m else 0
-        ytd_tgt = sum(tgt_vals[f"m{m}"] for m in range(1, last_m + 1) if tgt_vals[f"m{m}"]) if tgt_vals and last_m else 0
+        ytd_act = sum(act_vals[f"m{m}"] for m in range(period_start_o, period_end_o + 1) if act_vals.get(f"m{m}")) if act_vals else 0
+        ytd_yoy = sum(yoy_vals[f"m{m}"] for m in range(period_start_o, period_end_o + 1) if yoy_vals.get(f"m{m}")) if yoy_vals else 0
+        ytd_tgt = sum(tgt_vals[f"m{m}"] for m in range(period_start_o, period_end_o + 1) if tgt_vals.get(f"m{m}")) if tgt_vals else 0
 
         gr = (ytd_act - ytd_yoy) / abs(ytd_yoy) if ytd_yoy else None
         ar = ytd_act / ytd_tgt if (has_target and ytd_tgt) else None
@@ -408,30 +381,22 @@ with tab_orders:
         ar_str = fmt_pct(ar) if ar is not None else "-"
         if ar is not None:
             if ar >= 1.0:
-                ar_bg = "#E8F5E9"
-                ar_color = "#00B441"
+                ar_bg = "#E8F5E9"; ar_color = "#00B441"
             elif ar >= 0.9:
-                ar_bg = "#FFF8E1"
-                ar_color = "#F57C00"
+                ar_bg = "#FFF8E1"; ar_color = "#F57C00"
             else:
-                ar_bg = "#FFEBEE"
-                ar_color = "#F72B35"
+                ar_bg = "#FFEBEE"; ar_color = "#F72B35"
         else:
-            ar_bg = "#FFFFFF"
-            ar_color = "#282828"
+            ar_bg = "#FFFFFF"; ar_color = "#282828"
 
         table_rows.append({
-            "ch_name": ch_name,
-            "pm": pm,
+            "ch_name": ch_name, "pm": pm,
             "tgt_annual": fmt_won(tgt_annual) if has_target else "-",
             "ytd_tgt": fmt_won(ytd_tgt) if has_target else "-",
             "ytd_act": fmt_won(ytd_act),
             "ytd_yoy": fmt_won(ytd_yoy),
-            "gr_str": fmt_pct(gr),
-            "gr_color": gr_color,
-            "ar_str": ar_str,
-            "ar_bg": ar_bg,
-            "ar_color": ar_color,
+            "gr_str": fmt_pct(gr), "gr_color": gr_color,
+            "ar_str": ar_str, "ar_bg": ar_bg, "ar_color": ar_color,
         })
 
     html_rows = []
@@ -456,8 +421,8 @@ with tab_orders:
                 <th style="padding:8px 12px;text-align:center;">채널</th>
                 <th style="padding:8px 12px;text-align:center;">PM</th>
                 <th style="padding:8px 12px;text-align:center;">전체 목표</th>
-                <th style="padding:8px 12px;text-align:center;">YTD 목표</th>
-                <th style="padding:8px 12px;text-align:center;">YTD 실적</th>
+                <th style="padding:8px 12px;text-align:center;">{period_lbl_o} 목표</th>
+                <th style="padding:8px 12px;text-align:center;">{period_lbl_o} 실적</th>
                 <th style="padding:8px 12px;text-align:center;">전년 동기</th>
                 <th style="padding:8px 12px;text-align:center;">YoY 성장률</th>
                 <th style="padding:8px 12px;text-align:center;">달성률</th>
@@ -490,9 +455,9 @@ with tab_orders:
             rows.append(("달성률", ["-"] * 13))
         if act_v and yoy_v:
             gr_row = [fmt_pct_signed((act_v[f"m{m}"] - yoy_v[f"m{m}"]) / abs(yoy_v[f"m{m}"]) if (act_v[f"m{m}"] is not None and yoy_v[f"m{m}"]) else None) for m in range(1, 13)]
-            a_s = sum(act_v[f"m{m}"] for m in range(1, last_m + 1) if act_v[f"m{m}"]) if last_m else None
-            y_s = sum(yoy_v[f"m{m}"] for m in range(1, last_m + 1) if yoy_v[f"m{m}"]) if last_m else None
-            gr_row.append(fmt_pct_signed((a_s - y_s) / abs(y_s) if (a_s is not None and y_s) else None))
+            a_s = sum(act_v[f"m{m}"] for m in range(period_start_o, period_end_o + 1) if act_v.get(f"m{m}"))
+            y_s = sum(yoy_v[f"m{m}"] for m in range(period_start_o, period_end_o + 1) if yoy_v.get(f"m{m}"))
+            gr_row.append(fmt_pct_signed((a_s - y_s) / abs(y_s) if (a_s and y_s) else None))
             rows.append(("성장률(YOY)", gr_row))
         if yoy_v:
             rows.append(("25년 동기", [fmt_won(yoy_v[f"m{m}"]) for m in range(1, 13)] + [fmt_won(yoy_v["합계"])]))
@@ -514,13 +479,17 @@ with tab_orders:
 
 with tab_sales:
     st.markdown("### 매출 KPI")
-    _render_kpi(sales_df, sales_idx, "매출액", "목표", "25년 동기")
+    sc1, sc2, _ = st.columns([1.2, 1.2, 10])
+    period_start_s = sc1.selectbox("시작월", range(1, _MAX_M + 1), format_func=lambda x: f"{x}월", index=0, key="sal_ps")
+    period_end_s   = sc2.selectbox("종료월", range(1, _MAX_M + 1), format_func=lambda x: f"{x}월", index=_MAX_M - 1, key="sal_pe")
+    if period_end_s < period_start_s:
+        period_end_s = period_start_s
+    _render_kpi(sales_df, sales_idx, "매출액", "목표", "25년 동기", period_start_s, period_end_s)
     st.markdown("---")
 
     st.markdown("### 채널별 현황")
 
-    last_m = get_last_month_with_data(sales_df, sales_idx, "매출액")
-    period_lbl = f"1~{last_m}월" if last_m else "-"
+    period_lbl_s = f"{period_start_s}~{period_end_s}월"
 
     table_rows = []
     for ch_cfg in channels:
@@ -534,10 +503,10 @@ with tab_sales:
         tgt_vals = sheets_bxm.get_values(sales_df, sales_idx, ch_name, "목표") if has_target else None
 
         tgt_annual = sum(tgt_vals[f"m{m}"] for m in range(1, 13) if tgt_vals[f"m{m}"]) if tgt_vals else None
-        ytd_act = sum(act_vals[f"m{m}"] for m in range(1, last_m + 1) if act_vals[f"m{m}"]) if act_vals and last_m else 0
-        ytd_ext = sum(ext_vals[f"m{m}"] for m in range(1, last_m + 1) if ext_vals[f"m{m}"]) if ext_vals and last_m else 0
-        ytd_yoy = sum(yoy_vals[f"m{m}"] for m in range(1, last_m + 1) if yoy_vals[f"m{m}"]) if yoy_vals and last_m else 0
-        ytd_tgt = sum(tgt_vals[f"m{m}"] for m in range(1, last_m + 1) if tgt_vals[f"m{m}"]) if tgt_vals and last_m else 0
+        ytd_act = sum(act_vals[f"m{m}"] for m in range(period_start_s, period_end_s + 1) if act_vals.get(f"m{m}")) if act_vals else 0
+        ytd_ext = sum(ext_vals[f"m{m}"] for m in range(period_start_s, period_end_s + 1) if ext_vals.get(f"m{m}")) if ext_vals else 0
+        ytd_yoy = sum(yoy_vals[f"m{m}"] for m in range(period_start_s, period_end_s + 1) if yoy_vals.get(f"m{m}")) if yoy_vals else 0
+        ytd_tgt = sum(tgt_vals[f"m{m}"] for m in range(period_start_s, period_end_s + 1) if tgt_vals.get(f"m{m}")) if tgt_vals else 0
 
         gr = (ytd_act - ytd_yoy) / abs(ytd_yoy) if ytd_yoy else None
         ar = ytd_act / ytd_tgt if (has_target and ytd_tgt) else None
@@ -547,31 +516,23 @@ with tab_sales:
         ar_str = fmt_pct(ar) if ar is not None else "-"
         if ar is not None:
             if ar >= 1.0:
-                ar_bg = "#E8F5E9"
-                ar_color = "#00B441"
+                ar_bg = "#E8F5E9"; ar_color = "#00B441"
             elif ar >= 0.9:
-                ar_bg = "#FFF8E1"
-                ar_color = "#F57C00"
+                ar_bg = "#FFF8E1"; ar_color = "#F57C00"
             else:
-                ar_bg = "#FFEBEE"
-                ar_color = "#F72B35"
+                ar_bg = "#FFEBEE"; ar_color = "#F72B35"
         else:
-            ar_bg = "#FFFFFF"
-            ar_color = "#282828"
+            ar_bg = "#FFFFFF"; ar_color = "#282828"
 
         table_rows.append({
-            "ch_name": ch_name,
-            "pm": pm,
+            "ch_name": ch_name, "pm": pm,
             "tgt_annual": fmt_won(tgt_annual) if has_target else "-",
             "ytd_tgt": fmt_won(ytd_tgt) if has_target else "-",
             "ytd_act": fmt_won(ytd_act),
             "ytd_ext": fmt_won(ytd_ext),
             "ytd_yoy": fmt_won(ytd_yoy),
-            "gr_str": fmt_pct(gr),
-            "gr_color": gr_color,
-            "ar_str": ar_str,
-            "ar_bg": ar_bg,
-            "ar_color": ar_color,
+            "gr_str": fmt_pct(gr), "gr_color": gr_color,
+            "ar_str": ar_str, "ar_bg": ar_bg, "ar_color": ar_color,
         })
 
     html_rows = []
@@ -597,9 +558,9 @@ with tab_sales:
                 <th style="padding:8px 12px;text-align:center;">채널</th>
                 <th style="padding:8px 12px;text-align:center;">PM</th>
                 <th style="padding:8px 12px;text-align:center;">전체 목표</th>
-                <th style="padding:8px 12px;text-align:center;">YTD 목표</th>
-                <th style="padding:8px 12px;text-align:center;">YTD 실적</th>
-                <th style="padding:8px 12px;text-align:center;">YTD 엑스트라</th>
+                <th style="padding:8px 12px;text-align:center;">{period_lbl_s} 목표</th>
+                <th style="padding:8px 12px;text-align:center;">{period_lbl_s} 실적</th>
+                <th style="padding:8px 12px;text-align:center;">{period_lbl_s} 엑스트라</th>
                 <th style="padding:8px 12px;text-align:center;">전년 동기</th>
                 <th style="padding:8px 12px;text-align:center;">YoY 성장률</th>
                 <th style="padding:8px 12px;text-align:center;">달성률</th>
@@ -636,9 +597,9 @@ with tab_sales:
             rows.append(("달성률", ["-"] * 13))
         if act_v and yoy_v:
             gr_row = [fmt_pct_signed((act_v[f"m{m}"] - yoy_v[f"m{m}"]) / abs(yoy_v[f"m{m}"]) if (act_v[f"m{m}"] is not None and yoy_v[f"m{m}"]) else None) for m in range(1, 13)]
-            a_s = sum(act_v[f"m{m}"] for m in range(1, last_m + 1) if act_v[f"m{m}"]) if last_m else None
-            y_s = sum(yoy_v[f"m{m}"] for m in range(1, last_m + 1) if yoy_v[f"m{m}"]) if last_m else None
-            gr_row.append(fmt_pct_signed((a_s - y_s) / abs(y_s) if (a_s is not None and y_s) else None))
+            a_s = sum(act_v[f"m{m}"] for m in range(period_start_s, period_end_s + 1) if act_v.get(f"m{m}"))
+            y_s = sum(yoy_v[f"m{m}"] for m in range(period_start_s, period_end_s + 1) if yoy_v.get(f"m{m}"))
+            gr_row.append(fmt_pct_signed((a_s - y_s) / abs(y_s) if (a_s and y_s) else None))
             rows.append(("성장률(YOY)", gr_row))
         if yoy_v:
             rows.append(("25년 동기", [fmt_won(yoy_v[f"m{m}"]) for m in range(1, 13)] + [fmt_won(yoy_v["합계"])]))

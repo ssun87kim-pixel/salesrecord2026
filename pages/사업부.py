@@ -220,20 +220,26 @@ if page == "대시보드":
 
     st.title("2026년 데스커사업부 월별마감")
 
-    c1, c2, c3, c4, _ = st.columns([1, 1, 1, 1, 1])
-    year     = c1.selectbox("연도",      [2026],                        key="dash_year")
-    seg_type = c2.selectbox("구분 방식", ["팀 구분", "고객 구분"],      key="dash_seg_type")
+    c1, c2, c3, c4, c5, c6 = st.columns([0.9, 0.65, 0.65, 0.9, 1, 0.9])
+    year = c1.selectbox("연도", [2026], key="dash_year")
+    _max_m = max(1, CM - 1)
+    period_start = c2.selectbox("시작월", range(1, _max_m + 1), format_func=lambda x: f"{x}월", index=0, key="dash_ps")
+    period_end   = c3.selectbox("종료월", range(1, _max_m + 1), format_func=lambda x: f"{x}월", index=_max_m - 1, key="dash_pe")
+    if period_end < period_start:
+        period_end = period_start
 
-    # 구분 방식이 바뀌면 구분을 수주로 초기화
-    if st.session_state.get("_prev_seg_type") != seg_type:
+    # 구분방식 변경 시 구분을 수주로 초기화 (session_state에서 현재값 선행 확인)
+    _seg = st.session_state.get("dash_seg_type", "팀 구분")
+    if st.session_state.get("_prev_seg_type") != _seg:
         st.session_state["dash_dtype"] = "수주"
-        st.session_state["_prev_seg_type"] = seg_type
+        st.session_state["_prev_seg_type"] = _seg
 
-    dtype    = c3.selectbox("구분",      DATA_TYPES,                    key="dash_dtype")
+    dtype    = c4.selectbox("구분",    DATA_TYPES,                   key="dash_dtype")
+    seg_type = c5.selectbox("구분방식", ["팀 구분", "고객 구분"],     key="dash_seg_type")
     if seg_type == "팀 구분":
-        view = c4.selectbox("사업부", ["전체", "BXM", "CXM"],  key="dash_view_team")
+        view = c6.selectbox("팀명", ["전체", "BXM", "CXM"], key="dash_view_team")
     else:
-        view = c4.selectbox("고객",   ["전체", "B2C", "B2B"],  key="dash_view_cust")
+        view = c6.selectbox("고객",  ["전체", "B2C", "B2B"], key="dash_view_cust")
 
     # 데이터 로드 & 피벗
     t  = add_derived(to_pivot(filter_type(db.get_targets(year),      dtype)))
@@ -283,14 +289,10 @@ if page == "대시보드":
         cc_a = _cc_pivot(cc_2026)
         cc_p = _cc_pivot(cc_2025)
 
-        last_cc_m = max(
-            (m for m in range(1, 13) if sum(float(cc_a.loc[ch, m]) for ch in _CC_ALL) > 0),
-            default=0,
-        )
-        cc_ytd    = sum(float(cc_a.loc[ch, mm]) for ch in _CC_ALL for mm in range(1, last_cc_m + 1)) if last_cc_m else 0
-        cc_py_ytd = sum(float(cc_p.loc[ch, mm]) for ch in _CC_ALL for mm in range(1, last_cc_m + 1)) if last_cc_m else 0
+        cc_ytd    = sum(float(cc_a.loc[ch, mm]) for ch in _CC_ALL for mm in range(period_start, period_end + 1))
+        cc_py_ytd = sum(float(cc_p.loc[ch, mm]) for ch in _CC_ALL for mm in range(period_start, period_end + 1))
         cc_gr_kpi = (cc_ytd - cc_py_ytd) / abs(cc_py_ytd) if cc_py_ytd else None
-        cc_period = f"1~{last_cc_m}월" if last_cc_m else "-"
+        cc_period = f"{period_start}~{period_end}월"
 
         st.markdown("### 고객수 현황")
         kc1, *_ = st.columns([1, 5])
@@ -365,8 +367,8 @@ if page == "대시보드":
         ]
         cc_sum_rows = []
         for label, chs in cc_hier:
-            ytd_v  = sum(float(cc_a.loc[ch, mm]) for ch in chs for mm in range(1, last_cc_m + 1) if ch in cc_a.index) if last_cc_m else 0
-            py_v   = sum(float(cc_p.loc[ch, mm]) for ch in chs for mm in range(1, last_cc_m + 1) if ch in cc_p.index) if last_cc_m else 0
+            ytd_v  = sum(float(cc_a.loc[ch, mm]) for ch in chs for mm in range(period_start, period_end + 1) if ch in cc_a.index)
+            py_v   = sum(float(cc_p.loc[ch, mm]) for ch in chs for mm in range(period_start, period_end + 1) if ch in cc_p.index)
             gr_v   = (ytd_v - py_v) / abs(py_v) if py_v else None
             if gr_v is None:
                 gr_str = "-"
@@ -458,14 +460,12 @@ if page == "대시보드":
     py_s  = active_row(py)
     t_s   = active_row(t)
 
-    # YoY: 실적이 있는 마지막 월까지만 같은 기간으로 비교
-    last_act_m = max((m for m in range(1, 13) if float(act_s[m]) > 0), default=0)
-    period_lbl = f"1~{last_act_m}월" if last_act_m else "-"
+    period_lbl = f"{period_start}~{period_end}월"
 
     tgt     = float(t_s.sum())
-    ytd_tgt = sum(float(t_s[m])   for m in range(1, last_act_m + 1)) if last_act_m else 0
-    act     = sum(float(act_s[m]) for m in range(1, last_act_m + 1)) if last_act_m else 0
-    prev    = sum(float(py_s[m])  for m in range(1, last_act_m + 1)) if last_act_m else 0
+    ytd_tgt = sum(float(t_s[m])   for m in range(period_start, period_end + 1))
+    act     = sum(float(act_s[m]) for m in range(period_start, period_end + 1))
+    prev    = sum(float(py_s[m])  for m in range(period_start, period_end + 1))
 
     ar = act / ytd_tgt            if ytd_tgt else None
     gr = (act - prev) / abs(prev) if prev    else None
@@ -639,33 +639,33 @@ if page == "대시보드":
                 donut_colors = ["#336DFF", "#282828"]
                 _b2c_chs = ["온라인외부몰", "오프라인"]
                 act_ch = [
-                    sum(float(a.loc[ch, m]) for ch in _b2c_chs for m in range(1, last_act_m + 1)) if last_act_m else 0,
-                    sum(float(a.loc["공식몰+MATE", m]) for m in range(1, last_act_m + 1)) if last_act_m else 0,
+                    sum(float(a.loc[ch, m]) for ch in _b2c_chs for m in range(period_start, period_end + 1)),
+                    sum(float(a.loc["공식몰+MATE", m]) for m in range(period_start, period_end + 1)),
                 ]
                 py_ch = [
-                    sum(float(py.loc[ch, m]) for ch in _b2c_chs for m in range(1, last_act_m + 1)) if last_act_m else 0,
-                    sum(float(py.loc["공식몰+MATE", m]) for m in range(1, last_act_m + 1)) if last_act_m else 0,
+                    sum(float(py.loc[ch, m]) for ch in _b2c_chs for m in range(period_start, period_end + 1)),
+                    sum(float(py.loc["공식몰+MATE", m]) for m in range(period_start, period_end + 1)),
                 ]
             else:
                 donut_chs    = ["온라인외부몰", "오프라인", "공식몰+MATE"]
                 donut_labels = ["BXM", "CXM 오프라인", "CXM 공식몰"]
                 donut_colors = ["#336DFF", "#282828", "#969696"]
-                act_ch = [sum(float(a.loc[ch, m])  for m in range(1, last_act_m + 1)) if last_act_m else 0 for ch in donut_chs]
-                py_ch  = [sum(float(py.loc[ch, m]) for m in range(1, last_act_m + 1)) if last_act_m else 0 for ch in donut_chs]
+                act_ch = [sum(float(a.loc[ch, m])  for m in range(period_start, period_end + 1)) for ch in donut_chs]
+                py_ch  = [sum(float(py.loc[ch, m]) for m in range(period_start, period_end + 1)) for ch in donut_chs]
         elif view == "CXM":
             donut_chs    = ["오프라인", "공식몰+MATE"]
             donut_labels = ["오프라인", "공식몰+MATE"]
             donut_colors = ["#282828", "#969696"]
             st.markdown("### CXM 채널별 실적 비중")
-            act_ch = [sum(float(a.loc[ch, m])  for m in range(1, last_act_m + 1)) if last_act_m else 0 for ch in donut_chs]
-            py_ch  = [sum(float(py.loc[ch, m]) for m in range(1, last_act_m + 1)) if last_act_m else 0 for ch in donut_chs]
+            act_ch = [sum(float(a.loc[ch, m])  for m in range(period_start, period_end + 1)) for ch in donut_chs]
+            py_ch  = [sum(float(py.loc[ch, m]) for m in range(period_start, period_end + 1)) for ch in donut_chs]
         else:  # B2C
             donut_chs    = ["온라인외부몰", "오프라인"]
             donut_labels = ["온라인외부몰", "오프라인"]
             donut_colors = ["#336DFF", "#282828"]
             st.markdown("### B2C 채널별 실적 비중")
-            act_ch = [sum(float(a.loc[ch, m])  for m in range(1, last_act_m + 1)) if last_act_m else 0 for ch in donut_chs]
-            py_ch  = [sum(float(py.loc[ch, m]) for m in range(1, last_act_m + 1)) if last_act_m else 0 for ch in donut_chs]
+            act_ch = [sum(float(a.loc[ch, m])  for m in range(period_start, period_end + 1)) for ch in donut_chs]
+            py_ch  = [sum(float(py.loc[ch, m]) for m in range(period_start, period_end + 1)) for ch in donut_chs]
 
         act_tot = sum(act_ch)
         py_tot  = sum(py_ch)
@@ -766,9 +766,9 @@ if page == "대시보드":
             fmt_pct(gr_m),
         ]
     tgt_sum     = sum(tgt_row)
-    act_sum_ytd = sum(act_row[:last_act_m]) if last_act_m else 0
+    act_sum_ytd = sum(act_row[m-1] for m in range(period_start, period_end + 1))
     py_sum_all  = sum(py_row)
-    py_sum_ytd  = sum(py_row[:last_act_m])  if last_act_m else 0
+    py_sum_ytd  = sum(py_row[m-1]  for m in range(period_start, period_end + 1))
     tbl_data["총합"] = [
         fmt_won(tgt_sum),
         fmt_won(act_sum_ytd),
@@ -817,29 +817,33 @@ if page == "대시보드":
                         styles.loc[idx, col] = "color:#F72B35;font-weight:600"
         return styles
 
+    _done_quarters = [(q, m) for q, m in _QUARTERS if max(m) <= _max_m]
     with st.expander("분기별 현황 펼치기"):
-        q_idx   = ["목표", "실적", "달성률", "YoY 성장률"]
-        q_cols  = [q for q, _ in _QUARTERS] + ["연간"]
-        q_data  = {c: [] for c in q_cols}
-        for q_name, q_months in _QUARTERS:
-            q_tgt = sum(tgt_row[m-1] for m in q_months)
-            q_act = sum(act_row[m-1] for m in q_months if m <= last_act_m) if last_act_m else 0
-            q_py  = sum(py_row[m-1]  for m in q_months)
-            q_ar  = q_act / q_tgt      if (q_tgt  and q_act > 0) else None
-            q_gr  = (q_act - q_py) / abs(q_py) if (q_act > 0 and q_py) else None
-            q_data[q_name] = [fmt_won(q_tgt), fmt_won(q_act), fmt_pct(q_ar), fmt_pct(q_gr)]
-        ann_tgt = sum(tgt_row)
-        ann_act = sum(act_row[:last_act_m]) if last_act_m else 0
-        ann_py  = sum(py_row[:last_act_m])  if last_act_m else 0
-        q_data["연간"] = [
-            fmt_won(ann_tgt),
-            fmt_won(ann_act),
-            fmt_pct(ann_act / ytd_tgt if ytd_tgt else None),
-            fmt_pct((ann_act - ann_py) / abs(ann_py) if ann_py else None),
-        ]
-        q_monthly_df = pd.DataFrame(q_data, index=q_idx)
-        q_monthly_df.index.name = "구분"
-        _show_table(q_monthly_df.style.apply(_style_q, axis=None))
+        if not _done_quarters:
+            st.info("마감된 분기가 없습니다.")
+        else:
+            q_idx  = ["목표", "실적", "달성률", "YoY 성장률"]
+            q_cols = [q for q, _ in _done_quarters] + ["연간"]
+            q_data = {c: [] for c in q_cols}
+            for q_name, q_months in _done_quarters:
+                q_tgt = sum(tgt_row[m-1] for m in q_months)
+                q_act = sum(act_row[m-1] for m in q_months if period_start <= m <= period_end)
+                q_py  = sum(py_row[m-1]  for m in q_months)
+                q_ar  = q_act / q_tgt      if (q_tgt  and q_act > 0) else None
+                q_gr  = (q_act - q_py) / abs(q_py) if (q_act > 0 and q_py) else None
+                q_data[q_name] = [fmt_won(q_tgt), fmt_won(q_act), fmt_pct(q_ar), fmt_pct(q_gr)]
+            ann_tgt = sum(tgt_row)
+            ann_act = sum(act_row[m-1] for m in range(period_start, period_end + 1))
+            ann_py  = sum(py_row[m-1]  for m in range(period_start, period_end + 1))
+            q_data["연간"] = [
+                fmt_won(ann_tgt),
+                fmt_won(ann_act),
+                fmt_pct(ann_act / ytd_tgt if ytd_tgt else None),
+                fmt_pct((ann_act - ann_py) / abs(ann_py) if ann_py else None),
+            ]
+            q_monthly_df = pd.DataFrame(q_data, index=q_idx)
+            q_monthly_df.index.name = "구분"
+            _show_table(q_monthly_df.style.apply(_style_q, axis=None))
     st.markdown("---")
 
     # ── 4. 채널별 누적 현황 테이블 ───────────────────────────
@@ -895,10 +899,10 @@ if page == "대시보드":
         s_t  = _get_series(t,  ch)
         s_py = _get_series(py, ch)
 
-        ch_a_ytd    = sum(float(s_a[m])  for m in range(1, last_act_m + 1)) if last_act_m else 0
+        ch_a_ytd    = sum(float(s_a[m])  for m in range(period_start, period_end + 1))
         ch_t_annual = float(s_t.sum())
-        ch_ytd_tgt  = sum(float(s_t[m])  for m in range(1, last_act_m + 1)) if last_act_m else 0
-        ch_py_ytd   = sum(float(s_py[m]) for m in range(1, last_act_m + 1)) if last_act_m else 0
+        ch_ytd_tgt  = sum(float(s_t[m])  for m in range(period_start, period_end + 1))
+        ch_py_ytd   = sum(float(s_py[m]) for m in range(period_start, period_end + 1))
         ch_ar       = ch_a_ytd / ch_t_annual  if ch_t_annual else None
         ch_ar_ytd   = ch_a_ytd / ch_ytd_tgt   if ch_ytd_tgt  else None
         ch_gr = (ch_a_ytd - ch_py_ytd) / abs(ch_py_ytd) if ch_py_ytd else None
@@ -906,7 +910,7 @@ if page == "대시보드":
         quarters = {}
         for q_name, q_months in _QUARTERS:
             q_tgt = sum(float(s_t[m])  for m in q_months)
-            q_act = sum(float(s_a[m])  for m in q_months if m <= last_act_m) if last_act_m else 0
+            q_act = sum(float(s_a[m])  for m in q_months if period_start <= m <= period_end)
             q_py  = sum(float(s_py[m]) for m in q_months)
             q_ar  = q_act / q_tgt      if (q_tgt and q_act > 0) else None
             q_gr  = (q_act - q_py) / abs(q_py) if (q_act > 0 and q_py) else None
@@ -963,20 +967,23 @@ if page == "대시보드":
     )
 
     with st.expander("분기별 현황 펼치기"):
-        ch_labels = [s["label"] for s in ch_stats]
-        row_index, cell_data = [], {lbl: [] for lbl in ch_labels}
-        for q_name, _ in _QUARTERS:
-            for metric, fmt_fn_key in [("목표","tgt"),("실적","act"),("달성률","ar"),("YoY","gr")]:
-                row_index.append(f"{q_name} {metric}")
-                for s in ch_stats:
-                    q = s["quarters"][q_name]
-                    if fmt_fn_key in ("tgt","act"):
-                        cell_data[s["label"]].append(fmt_won(q[fmt_fn_key]))
-                    else:
-                        cell_data[s["label"]].append(fmt_pct(q[fmt_fn_key]))
-        q_df = pd.DataFrame(cell_data, index=row_index)
-        q_df.index.name = "구분"
-        _show_table(q_df.style.apply(_style_q, axis=None))
+        if not _done_quarters:
+            st.info("마감된 분기가 없습니다.")
+        else:
+            ch_labels = [s["label"] for s in ch_stats]
+            row_index, cell_data = [], {lbl: [] for lbl in ch_labels}
+            for q_name, _ in _done_quarters:
+                for metric, fmt_fn_key in [("목표","tgt"),("실적","act"),("달성률","ar"),("YoY","gr")]:
+                    row_index.append(f"{q_name} {metric}")
+                    for s in ch_stats:
+                        q = s["quarters"][q_name]
+                        if fmt_fn_key in ("tgt","act"):
+                            cell_data[s["label"]].append(fmt_won(q[fmt_fn_key]))
+                        else:
+                            cell_data[s["label"]].append(fmt_pct(q[fmt_fn_key]))
+            q_df = pd.DataFrame(cell_data, index=row_index)
+            q_df.index.name = "구분"
+            _show_table(q_df.style.apply(_style_q, axis=None))
 
     st.markdown("---")
     st.markdown(f"### EXTRA 현황 ({dtype})")
